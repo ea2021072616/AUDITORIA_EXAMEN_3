@@ -141,7 +141,8 @@ Evaluar la correcta operatividad, disponibilidad y funcionalidad del **Sistema d
 | auditoria_examen_3-proxy-1 | nginx:stable-alpine | 5173→80 | Up |
 
 > 📸 **Evidencia 1 (Anexo 1):** Captura del comando `docker ps` mostrando los 3 contenedores en estado "Up".
-> *(Ver imagen en `/evidencias/evidencia_01_docker_ps.png`)*
+> 
+> ![Evidencia 1](evidencias/evidencia_01_docker_ps.png)
 
 ---
 
@@ -154,7 +155,8 @@ Evaluar la correcta operatividad, disponibilidad y funcionalidad del **Sistema d
 **Resultado:** ✅ CONFORME CON OBSERVACIÓN
 
 > 📸 **Evidencia 2 (Anexo 2):** Captura de la interfaz web mostrando una respuesta del bot a una consulta del usuario.
-> *(Ver imagen en `/evidencias/evidencia_02_respuesta_ia.png`)*
+> 
+> ![Evidencia 2](evidencias/evidencia_02_respuesta_ia.png)
 
 ---
 
@@ -176,10 +178,12 @@ CREATE TABLE tickets (
 ```
 
 > 📸 **Evidencia 3 (Anexo 3):** Captura del mensaje de confirmación "He creado el ticket de soporte #X".
-> *(Ver imagen en `/evidencias/evidencia_03_ticket_creado.png`)*
+> 
+> ![Evidencia 3](evidencias/evidencia_03_ticket_creado.png)
 
 > 📸 **Evidencia 4 (Anexo 4):** Captura de la pestaña "Historial de Tickets" mostrando el ticket registrado.
-> *(Ver imagen en `/evidencias/evidencia_04_historial_tickets.png`)*
+> 
+> ![Evidencia 4](evidencias/evidencia_04_historial_tickets.png)
 
 ---
 
@@ -190,7 +194,8 @@ CREATE TABLE tickets (
 **Resultado:** ✅ CONFORME
 
 > 📸 **Evidencia 5 (Anexo 5):** Captura de la interfaz web corporativa EPIS Pilot funcionando en el navegador.
-> *(Ver imagen en `/evidencias/evidencia_05_interfaz_web.png`)*
+> 
+> ![Evidencia 5](evidencias/evidencia_05_interfaz_web.png)
 
 ---
 
@@ -246,8 +251,8 @@ La auditoría se llevó a cabo con base en los siguientes criterios:
 
 | Cargo           | Nombres y Apellidos       | Profesión                    | Planificación | Ejecución | Informe | Total |
 |-----------------|---------------------------|------------------------------|---------------|-----------|---------|-------|
-| Docente/Supervisor | [Nombre del Docente]   | Ingeniero de Sistemas        | 1 día         | 1 día     | 1 día   | 3 días |
-| Jefe de Comisión | [Nombre del Estudiante]  | Estudiante de Ing. Sistemas  | 1 día         | 1 día     | 1 día   | 3 días |
+| Docente/Supervisor | Dr. Oscar J. Jimenez Flores   | Ingeniero de Sistemas        | 1 día         | 1 día     | 1 día   | 3 días |
+| Jefe de Comisión | Erick Yoel Ayma Choque  | Estudiante de Ing. Sistemas  | 1 día         | 1 día     | 1 día   | 3 días |
 
 ### X.2 Costos Directos Estimados
 
@@ -295,10 +300,10 @@ Como resultado de esta auditoría, se emite el presente **Informe de Auditoría 
 
 **Lima, 24 de junio de 2026**
 
-**[Nombre del Estudiante]**
+**Erick Yoel Ayma Choque**
 Jefe de Comisión — Auditoría de Sistemas
 
-**[Nombre del Docente]**
+**Dr. Oscar J. Jimenez Flores**
 Supervisor — Docente del Curso de Auditoría de Sistemas
 
 ---
@@ -312,12 +317,16 @@ Supervisor — Docente del Curso de Auditoría de Sistemas
 **Archivo:** `/evidencias/evidencia_01_docker_ps.png`  
 **Objetivo relacionado:** OE1 — Verificar el despliegue de contenedores.
 
+![Evidencia 1](evidencias/evidencia_01_docker_ps.png)
+
 ---
 
 ### Anexo 2 — Evidencia 2: Respuesta del modelo smollm:360m
 **Descripción:** Captura de la interfaz web mostrando una respuesta del asistente EPIS Pilot a una consulta del usuario.  
 **Archivo:** `/evidencias/evidencia_02_respuesta_ia.png`  
 **Objetivo relacionado:** OE2 — Integración del modelo IA.
+
+![Evidencia 2](evidencias/evidencia_02_respuesta_ia.png)
 
 ---
 
@@ -326,6 +335,8 @@ Supervisor — Docente del Curso de Auditoría de Sistemas
 **Archivo:** `/evidencias/evidencia_03_ticket_creado.png`  
 **Objetivo relacionado:** OE3 — Generación y registro de tickets.
 
+![Evidencia 3](evidencias/evidencia_03_ticket_creado.png)
+
 ---
 
 ### Anexo 4 — Evidencia 4: Historial de tickets en la interfaz
@@ -333,12 +344,16 @@ Supervisor — Docente del Curso de Auditoría de Sistemas
 **Archivo:** `/evidencias/evidencia_04_historial_tickets.png`  
 **Objetivo relacionado:** OE3 — Consulta del historial de tickets.
 
+![Evidencia 4](evidencias/evidencia_04_historial_tickets.png)
+
 ---
 
 ### Anexo 5 — Evidencia 5: Interfaz web corporativa funcionando
 **Descripción:** Captura de la interfaz completa del sistema "EPIS Pilot" corriendo en `http://localhost:5173`, mostrando el diseño corporativo, el sidebar y el chat.  
 **Archivo:** `/evidencias/evidencia_05_interfaz_web.png`  
 **Objetivo relacionado:** OE4 — Validar la experiencia de usuario.
+
+![Evidencia 5](evidencias/evidencia_05_interfaz_web.png)
 
 ---
 

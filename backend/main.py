@@ -41,6 +41,24 @@ logging.getLogger("uvicorn.access").handlers = [InterceptHandler()]
 # --- CONFIGURACIÓN Y MODELOS ---
 VECTOR_STORE_DIR = "vector_store"
 DB_PATH = "tickets.db"
+
+# Inicializar la base de datos al arrancar (crea la tabla si no existe)
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS tickets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            description TEXT NOT NULL,
+            status TEXT NOT NULL
+        )
+    ''')
+    conn.commit()
+    conn.close()
+    logger.info("Base de datos inicializada correctamente.")
+
+init_db()
+
 app = FastAPI(title="Corporate EPIS Pilot API - Advanced Flow")
 app.add_middleware(
     CORSMiddleware,
