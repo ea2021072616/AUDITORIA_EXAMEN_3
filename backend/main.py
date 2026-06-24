@@ -51,7 +51,7 @@ app.add_middleware(
 Instrumentator().instrument(app).expose(app)
 
 
-llm = OllamaLLM(model="llama3.1:8b", temperature=0, base_url="http://host.docker.internal:11434")
+llm = OllamaLLM(model="smollm:360m", temperature=0, base_url="http://host.docker.internal:11434")
 embeddings = HuggingFaceEmbeddings(model_name="intfloat/multilingual-e5-large")
 vector_store = Chroma(persist_directory=VECTOR_STORE_DIR, embedding_function=embeddings)
 retriever = vector_store.as_retriever()
