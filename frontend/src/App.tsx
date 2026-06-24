@@ -10,9 +10,15 @@ export interface Message {
 // Mensaje inicial mejorado
 const initialMessage: Message = {
   id: 0,
-  content: "Hola, soy EPIS Pilot, el asistente virtual de EPIS Corp. ¿En qué puedo ayudarte hoy?",
+  content: "¡Hola! 👋 Soy **EPIS Pilot**, tu asistente virtual corporativo de **EPIS Corp**. Puedo ayudarte con:\n\n• 📋 **Consultas generales** sobre políticas y procedimientos\n• 🔧 **Reportar problemas técnicos**\n• 🎫 **Crear tickets de soporte**\n\n¿En qué puedo ayudarte hoy?",
   sender: 'bot',
 };
+
+export interface Ticket {
+  id: number;
+  description: string;
+  status: string;
+}
 
 function App() {
   const [messages, setMessages] = useState<Message[]>([initialMessage]);
@@ -20,12 +26,32 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [showFeedbackButtons, setShowFeedbackButtons] = useState(false);
   const [showFollowUpOptions, setShowFollowUpOptions] = useState(false);
-  
-  // --- CAMBIO 1: Este estado ya no es necesario, lo eliminamos ---
-  // const [lastProblemDescription, setLastProblemDescription] = useState<string>('');
-  
-  // --- CAMBIO 2: Nuevo estado para saber si estamos esperando la descripción de un ticket ---
   const [isWaitingForTicketDescription, setIsWaitingForTicketDescription] = useState(false);
+  const [activeTab, setActiveTab] = useState<'chat' | 'tickets'>('chat');
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [ticketsLoading, setTicketsLoading] = useState(false);
+
+  const loadTickets = async () => {
+    setTicketsLoading(true);
+    try {
+      const response = await fetch('/api/tickets');
+      if (response.ok) {
+        const data = await response.json();
+        setTickets(data.tickets || []);
+      }
+    } catch (error) {
+      console.error("Error al cargar tickets:", error);
+    } finally {
+      setTicketsLoading(false);
+    }
+  };
+
+  const handleTabChange = (tab: 'chat' | 'tickets') => {
+    setActiveTab(tab);
+    if (tab === 'tickets') {
+      loadTickets();
+    }
+  };
 
   const sendMessage = async (messageToSend: string, isInternalAction = false) => {
     setShowFeedbackButtons(false);
@@ -33,25 +59,21 @@ function App() {
 
     let finalMessage = messageToSend;
 
-    // --- CAMBIO 3: Lógica para formatear la descripción del ticket ---
-    // Si estamos esperando una descripción, la formateamos como una acción para el backend.
     if (isWaitingForTicketDescription && !isInternalAction) {
       finalMessage = `ACTION_CREATE_TICKET:${messageToSend}`;
-      setIsWaitingForTicketDescription(false); // Reseteamos el estado
-      isInternalAction = true; // Marcamos como acción interna para no mostrar "ACTION_..." en el chat
+      setIsWaitingForTicketDescription(false);
+      isInternalAction = true;
     }
     
     if (!isInternalAction) {
       const userMessage: Message = { id: Date.now(), sender: 'user', content: messageToSend };
       setMessages((prev) => [...prev, userMessage]);
-      // Ya no necesitamos guardar la descripción original aquí
     }
     
     setIsLoading(true);
     setInput('');
 
     try {
-      // La petición ahora usa 'finalMessage', que puede ser la pregunta normal o la acción del ticket
       const response = await fetch(`/api/ask?question=${encodeURIComponent(finalMessage)}`);
       if (!response.ok) throw new Error('Error en la respuesta de la red');
 
@@ -64,7 +86,7 @@ function App() {
       }
     } catch (error) {
       console.error("Error al contactar la API:", error);
-      const errorMessage: Message = { id: Date.now() + 1, sender: 'bot', content: "Error: No se pudo obtener respuesta del servidor." };
+      const errorMessage: Message = { id: Date.now() + 1, sender: 'bot', content: "⚠️ Error: No se pudo obtener respuesta del servidor. Verifica tu conexión." };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
@@ -80,10 +102,10 @@ function App() {
   const handleFeedback = (response: 'yes' | 'no') => {
     setShowFeedbackButtons(false);
     if (response === 'yes') {
-      const confirmationMessage: Message = { id: Date.now(), sender: 'bot', content: "¡Genial! Me alegro de haberte ayudado. Si necesitas algo más, no dudes en preguntar." };
+      const confirmationMessage: Message = { id: Date.now(), sender: 'bot', content: "¡Genial! 🎉 Me alegro de haberte ayudado. Si necesitas algo más, no dudes en preguntar." };
       setMessages((prev) => [...prev, confirmationMessage]);
     } else {
-      const followUpMessage: Message = { id: Date.now(), sender: 'bot', content: "Entendido. ¿Cómo quieres proceder?" };
+      const followUpMessage: Message = { id: Date.now(), sender: 'bot', content: "Entendido. ¿Cómo deseas proceder?" };
       setMessages((prev) => [...prev, followUpMessage]);
       setShowFollowUpOptions(true);
     }
@@ -92,14 +114,12 @@ function App() {
   const handleFollowUpChoice = (choice: 'create_ticket' | 'explain_more') => {
     setShowFollowUpOptions(false);
     
-    // --- CAMBIO 4: Lógica de 'create_ticket' modificada ---
     if (choice === 'create_ticket') {
-      // En lugar de crear el ticket, el bot ahora pregunta por los detalles.
-      const askForDescriptionMessage: Message = { id: Date.now(), sender: 'bot', content: "De acuerdo. Por favor, explique su problema con detalle para que un experto le atienda. Lo que escriba a continuación se registrará en el ticket." };
+      const askForDescriptionMessage: Message = { id: Date.now(), sender: 'bot', content: "📝 De acuerdo. Por favor, **describe tu problema con detalle** para que un experto pueda atenderte. Lo que escribas a continuación se registrará en el ticket de soporte." };
       setMessages((prev) => [...prev, askForDescriptionMessage]);
-      setIsWaitingForTicketDescription(true); // Activamos el modo "espera de descripción"
+      setIsWaitingForTicketDescription(true);
     } else {
-      const explainMoreMessage: Message = { id: Date.now(), sender: 'bot', content: "Por favor, describe tu problema con más detalle en el chat." };
+      const explainMoreMessage: Message = { id: Date.now(), sender: 'bot', content: "Por favor, describe tu problema con más detalle y trataré de ayudarte." };
       setMessages((prev) => [...prev, explainMoreMessage]);
     }
   };
@@ -115,6 +135,10 @@ function App() {
       onFeedback={handleFeedback}
       showFollowUpOptions={showFollowUpOptions}
       onFollowUpChoice={handleFollowUpChoice}
+      activeTab={activeTab}
+      onTabChange={handleTabChange}
+      tickets={tickets}
+      ticketsLoading={ticketsLoading}
     />
   );
 }

@@ -54,13 +54,13 @@ Instrumentator().instrument(app).expose(app)
 llm = OllamaLLM(model="smollm:360m", temperature=0, base_url="http://host.docker.internal:11434")
 embeddings = HuggingFaceEmbeddings(model_name="intfloat/multilingual-e5-large")
 vector_store = Chroma(persist_directory=VECTOR_STORE_DIR, embedding_function=embeddings)
-retriever = vector_store.as_retriever()
+retriever = vector_store.as_retriever(search_kwargs={"k": 2})
 
-# --- LÓGICA DE LANGCHAIN (MODIFICADA) ---
-rag_prompt_template = """Instrucción: Eres un asistente técnico. Responde en español usando SOLO el contexto. Sé muy breve y directo (máximo 2 líneas). No repitas la pregunta.
-Contexto: {context}
-Pregunta: {question}
-Respuesta:"""
+# --- LÓGICA DE LANGCHAIN (MODIFICADA PARA SMOLLM) ---
+rag_prompt_template = """Answer in Spanish. Use only the context below. Be brief (1-2 sentences max). Do not repeat the question.
+Context: {context}
+Question: {question}
+Answer:"""
 rag_prompt = PromptTemplate.from_template(rag_prompt_template)
 rag_chain = RetrievalQA.from_chain_type(llm=llm, chain_type="stuff", retriever=retriever, chain_type_kwargs={"prompt": rag_prompt})
 
@@ -76,7 +76,7 @@ def create_support_ticket(description: str) -> str:
     ticket_id = cursor.lastrowid
     conn.commit()
     conn.close()
-    return f"De acuerdo. He creado el ticket de soporte #{ticket_id} con tu problema: '{problem_description}'. El equipo técnico se pondrá en contacto contigo."
+    return f"✅ He creado el **ticket de soporte #{ticket_id}** con tu problema: *'{problem_description}'*. El equipo técnico se pondrá en contacto contigo pronto."
 
 # El router ahora es más simple
 # CAMBIO 1: Añadimos la nueva intención 'despedida'
@@ -97,14 +97,37 @@ router_prompt = PromptTemplate(
     input_variables=["question"],
     partial_variables={"format_instructions": output_parser.get_format_instructions()},
 )
+
 def extract_intent(text: str) -> dict:
-    if "pregunta_general" in text:
-        return {"intent": "pregunta_general"}
-    elif "reporte_de_problema" in text:
+    """Extrae la intención del texto generado por smollm de forma robusta."""
+    text_lower = text.lower()
+    # Buscar palabras clave en la respuesta del LLM
+    if "reporte_de_problema" in text_lower or "problema" in text_lower:
         return {"intent": "reporte_de_problema"}
-    elif "despedida" in text:
+    elif "despedida" in text_lower or "adios" in text_lower or "gracias" in text_lower:
         return {"intent": "despedida"}
+    elif "pregunta_general" in text_lower:
+        return {"intent": "pregunta_general"}
     return {"intent": "pregunta_general"}
+
+def classify_intent_by_keywords(question: str) -> str:
+    """Clasificación rápida basada en palabras clave del usuario (sin LLM)."""
+    q = question.lower().strip()
+    # Saludos
+    greetings = ["hola", "buenos dias", "buenas tardes", "buenas noches", "saludos", "hey", "que tal"]
+    if q in greetings:
+        return "saludo"
+    # Despedidas
+    farewells = ["gracias", "adios", "adiós", "chao", "bye", "hasta luego", "perfecto", "vale", "ok gracias"]
+    if q in farewells or any(q.startswith(f) for f in farewells):
+        return "despedida"
+    # Problemas
+    problem_keywords = ["no funciona", "error", "problema", "falla", "no puedo", "no me deja", 
+                        "se cae", "lento", "roto", "no carga", "no abre", "no conecta",
+                        "no sirve", "ayuda", "urgente", "caido", "caído"]
+    if any(kw in q for kw in problem_keywords):
+        return "reporte_de_problema"
+    return None  # No se pudo clasificar por keywords, usar LLM
 
 router_chain = router_prompt | llm | RunnableLambda(extract_intent)
 
@@ -112,40 +135,73 @@ chain_with_preserved_input = RunnablePassthrough.assign(decision=router_chain)
 
 problem_chain = RunnableLambda(lambda x: {"query": x["question"]}) | rag_chain
 
+
+def clean_llm_output(text: str) -> str:
+    """Limpia la salida del LLM para evitar alucinaciones y repeticiones."""
+    if not text:
+        return "No encontré información específica sobre este tema en mis documentos."
+    # Cortar el bucle infinito si el modelo empieza a alucinar
+    for delimiter in ["Pregunta:", "Contexto:", "Context:", "Question:", "Answer:", "Respuesta:"]:
+        if delimiter in text:
+            text = text.split(delimiter)[0]
+    # Eliminar repeticiones de líneas
+    lines = text.strip().split("\n")
+    seen = set()
+    unique_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped and stripped not in seen:
+            seen.add(stripped)
+            unique_lines.append(stripped)
+    text = " ".join(unique_lines)
+    text = text.strip()
+    # Limitar longitud
+    if len(text) > 250:
+        text = text[:247] + "..."
+    return text if text else "No encontré información específica sobre este tema en mis documentos."
+
+
 # --- ENDPOINT DE LA API (MODIFICADO) ---
 @app.get("/ask")
 def ask_question(question: str):
     try:
-        # Respuesta rápida para saludos simples
-        q_lower = question.lower().strip()
-        if q_lower in ["hola", "buenos dias", "buenas tardes", "buenas noches", "saludos"]:
-            return {"answer": "¡Hola! ¿En qué puedo ayudarte el día de hoy?", "follow_up_required": False}
+        # Paso 1: Clasificación rápida por keywords (sin usar LLM)
+        quick_intent = classify_intent_by_keywords(question)
+        
+        if quick_intent == "saludo":
+            return {"answer": "¡Hola! 👋 Soy **EPIS Pilot**, tu asistente virtual. ¿En qué puedo ayudarte hoy?", "follow_up_required": False}
+        
+        if quick_intent == "despedida":
+            return {"answer": "¡De nada! 😊 Si necesitas algo más, aquí estaré. ¡Que tengas un excelente día!", "follow_up_required": False}
 
+        # Crear ticket directamente
         if question.startswith("ACTION_CREATE_TICKET:"):
             description = question.split(":", 1)[1]
             return {"answer": create_support_ticket(description), "follow_up_required": False}
 
-        decision_result = chain_with_preserved_input.invoke({"question": question})
-        decision = decision_result.get("decision", {})
-        if isinstance(decision, dict):
-            intent = decision.get("intent", "pregunta_general")
+        # Paso 2: Si es un reporte de problema por keywords, ir directo al RAG
+        if quick_intent == "reporte_de_problema":
+            intent = "reporte_de_problema"
         else:
-            intent = "pregunta_general"
+            # Paso 3: Usar el LLM para clasificar solo si no se pudo por keywords
+            try:
+                decision_result = chain_with_preserved_input.invoke({"question": question})
+                decision = decision_result.get("decision", {})
+                if isinstance(decision, dict):
+                    intent = decision.get("intent", "pregunta_general")
+                else:
+                    intent = "pregunta_general"
+            except Exception as e:
+                logger.warning(f"Error en clasificación LLM, usando pregunta_general: {e}")
+                intent = "pregunta_general"
+                decision_result = {"question": question}
         
+        # Si vino de keyword, necesitamos construir decision_result
+        if quick_intent == "reporte_de_problema":
+            decision_result = {"question": question, "decision": {"intent": "reporte_de_problema"}}
+
         answer = ""
         follow_up = False
-
-        def clean_llm_output(text: str) -> str:
-            # Cortar el bucle infinito si el modelo empieza a alucinar "Pregunta:" o "Contexto:"
-            if "Pregunta:" in text:
-                text = text.split("Pregunta:")[0]
-            if "Contexto:" in text:
-                text = text.split("Contexto:")[0]
-            text = text.strip()
-            # Limitar longitud a máximo 150 caracteres para respuestas concisas
-            if len(text) > 150:
-                text = text[:147] + "..."
-            return text if text else "Lo siento, no pude procesar bien la información."
 
         if intent == "pregunta_general":
             result = problem_chain.invoke(decision_result)
@@ -155,16 +211,31 @@ def ask_question(question: str):
             result = problem_chain.invoke(decision_result)
             raw_solution = result.get("result", "No he encontrado una solución específica en mis documentos.")
             solution = clean_llm_output(raw_solution)
-            answer = f"{solution}\n\n¿Esta información soluciona tu problema?"
+            answer = f"{solution}\n\n**¿Esta información soluciona tu problema?**"
             follow_up = True
-        # CAMBIO 3: Añadimos el manejo de la nueva intención
         elif intent == "despedida":
-            answer = "De nada, ¡un placer ayudar! Si tienes cualquier otra consulta, aquí estaré. 😊"
+            answer = "¡De nada! 😊 Si necesitas algo más, aquí estaré. ¡Que tengas un excelente día!"
             follow_up = False
             
         return {"answer": answer, "follow_up_required": follow_up}
 
     except Exception as e:
-        # AÑADIDO: Usamos logger en lugar de print para un registro estructurado
         logger.error(f"Error en el endpoint /ask: {e}")
-        return {"answer": "Lo siento, ha ocurrido un error.", "follow_up_required": False}
+        return {"answer": "Lo siento, ha ocurrido un error procesando tu consulta. Por favor, intenta de nuevo.", "follow_up_required": False}
+
+
+# --- NUEVO: ENDPOINT PARA LISTAR TICKETS ---
+@app.get("/tickets")
+def get_tickets():
+    """Retorna todos los tickets de soporte registrados."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, description, status FROM tickets ORDER BY id DESC")
+        rows = cursor.fetchall()
+        conn.close()
+        tickets = [{"id": row[0], "description": row[1], "status": row[2]} for row in rows]
+        return {"tickets": tickets, "total": len(tickets)}
+    except Exception as e:
+        logger.error(f"Error al obtener tickets: {e}")
+        return {"tickets": [], "total": 0}
