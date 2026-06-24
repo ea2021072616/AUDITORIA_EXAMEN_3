@@ -57,7 +57,10 @@ vector_store = Chroma(persist_directory=VECTOR_STORE_DIR, embedding_function=emb
 retriever = vector_store.as_retriever()
 
 # --- LÓGICA DE LANGCHAIN (MODIFICADA) ---
-rag_prompt_template = "Usa el siguiente contexto para responder en español de forma concisa y útil a la pregunta.\nContexto: {context}\nPregunta: {question}\nRespuesta:"
+rag_prompt_template = """Instrucción: Eres un asistente técnico. Responde en español usando SOLO el contexto. Sé muy breve y directo (máximo 2 líneas). No repitas la pregunta.
+Contexto: {context}
+Pregunta: {question}
+Respuesta:"""
 rag_prompt = PromptTemplate.from_template(rag_prompt_template)
 rag_chain = RetrievalQA.from_chain_type(llm=llm, chain_type="stuff", retriever=retriever, chain_type_kwargs={"prompt": rag_prompt})
 
@@ -94,14 +97,16 @@ router_prompt = PromptTemplate(
     input_variables=["question"],
     partial_variables={"format_instructions": output_parser.get_format_instructions()},
 )
-def extract_json_from_string(text: str) -> str:
-    match = re.search(r'\{.*\}', text, re.DOTALL)
-    # Si no encuentra JSON o la pregunta es muy corta, es probable que sea una despedida
-    if not match and len(text) < 20:
-        return '{"intent": "despedida"}'
-    return match.group(0) if match else '{"intent": "pregunta_general"}'
+def extract_intent(text: str) -> dict:
+    if "pregunta_general" in text:
+        return {"intent": "pregunta_general"}
+    elif "reporte_de_problema" in text:
+        return {"intent": "reporte_de_problema"}
+    elif "despedida" in text:
+        return {"intent": "despedida"}
+    return {"intent": "pregunta_general"}
 
-router_chain = router_prompt | llm | RunnableLambda(extract_json_from_string) | output_parser
+router_chain = router_prompt | llm | RunnableLambda(extract_intent)
 
 chain_with_preserved_input = RunnablePassthrough.assign(decision=router_chain)
 
@@ -111,6 +116,11 @@ problem_chain = RunnableLambda(lambda x: {"query": x["question"]}) | rag_chain
 @app.get("/ask")
 def ask_question(question: str):
     try:
+        # Respuesta rápida para saludos simples
+        q_lower = question.lower().strip()
+        if q_lower in ["hola", "buenos dias", "buenas tardes", "buenas noches", "saludos"]:
+            return {"answer": "¡Hola! ¿En qué puedo ayudarte el día de hoy?", "follow_up_required": False}
+
         if question.startswith("ACTION_CREATE_TICKET:"):
             description = question.split(":", 1)[1]
             return {"answer": create_support_ticket(description), "follow_up_required": False}
