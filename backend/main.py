@@ -135,12 +135,26 @@ def ask_question(question: str):
         answer = ""
         follow_up = False
 
+        def clean_llm_output(text: str) -> str:
+            # Cortar el bucle infinito si el modelo empieza a alucinar "Pregunta:" o "Contexto:"
+            if "Pregunta:" in text:
+                text = text.split("Pregunta:")[0]
+            if "Contexto:" in text:
+                text = text.split("Contexto:")[0]
+            text = text.strip()
+            # Limitar longitud a máximo 150 caracteres para respuestas concisas
+            if len(text) > 150:
+                text = text[:147] + "..."
+            return text if text else "Lo siento, no pude procesar bien la información."
+
         if intent == "pregunta_general":
             result = problem_chain.invoke(decision_result)
-            answer = result.get("result", "No se encontró respuesta.")
+            raw_solution = result.get("result", "No se encontró respuesta.")
+            answer = clean_llm_output(raw_solution)
         elif intent == "reporte_de_problema":
             result = problem_chain.invoke(decision_result)
-            solution = result.get("result", "No he encontrado una solución específica en mis documentos.")
+            raw_solution = result.get("result", "No he encontrado una solución específica en mis documentos.")
+            solution = clean_llm_output(raw_solution)
             answer = f"{solution}\n\n¿Esta información soluciona tu problema?"
             follow_up = True
         # CAMBIO 3: Añadimos el manejo de la nueva intención
