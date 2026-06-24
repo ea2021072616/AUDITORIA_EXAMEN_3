@@ -116,7 +116,11 @@ def ask_question(question: str):
             return {"answer": create_support_ticket(description), "follow_up_required": False}
 
         decision_result = chain_with_preserved_input.invoke({"question": question})
-        intent = decision_result["decision"]["intent"]
+        decision = decision_result.get("decision", {})
+        if isinstance(decision, dict):
+            intent = decision.get("intent", "pregunta_general")
+        else:
+            intent = "pregunta_general"
         
         answer = ""
         follow_up = False
